@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify
+from marshmallow import ValidationError
+
 from app import db
 from app.models import Usuario, Produto, Pedido, ItemPedido
 from app.schemas import UsuarioSchema, ProdutoSchema, PedidoSchema, ItemPedidoSchema
-from app.auth import requer_autenticacao
+from app.auth import requer_autenticacao, gerar_token
 
 bp = Blueprint('main', __name__)
 
@@ -19,18 +21,19 @@ def home():
 
 #----------------------------- ROTAS PARA USUARIO -------------------------------------------------------
 
-@bp.route('/usuarios', methods=['POST'])
-@requer_autenticacao
-def criar_usuario():
-    data = request.get_json()
-    errors = usuario_schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
-
-    usuario = usuario_schema.load(data, session=db.session)
-    db.session.add(usuario)
-    db.session.commit()
-    return jsonify({'id': usuario.id}), 201
+# @bp.route('/usuarios', methods=['POST'])
+# @requer_autenticacao
+# def criar_usuario():
+#     data = request.get_json()
+#
+#     try:
+#         usuario = usuario_schema.load(data, session=db.session)
+#     except ValidationError as err:
+#         return jsonify(err.messages), 400
+#
+#     db.session.add(usuario)
+#     db.session.commit()
+#     return jsonify({'Usuário criado com sucesso. id': usuario.id}), 201
 
 
 @bp.route('/usuarios', methods=['GET'])
@@ -44,19 +47,17 @@ def listar_usuarios():
 @requer_autenticacao
 def atualizar_usuario(id):
     data = request.get_json()
-    errors = usuario_schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
-
     usuario = Usuario.query.get(id)
     if not usuario:
         return jsonify({'error': 'Usuário não encontrado.'}), 404
 
-    usuario.nome_usuario = data.get('nome_usuario', usuario.nome_usuario)
-    usuario.email = data.get('email', usuario.email)
-    usuario.senha = data.get('senha', usuario.senha)
+    try:
+        usuario_atualizado = usuario_schema.load(data, instance=usuario, session=db.session)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+
     db.session.commit()
-    return jsonify(usuario_schema.dump(usuario))
+    return jsonify(usuario_schema.dump(usuario_atualizado))
 
 
 @bp.route('/usuarios/<int:id>', methods=['DELETE'])
@@ -70,20 +71,22 @@ def deletar_usuario(id):
     db.session.commit()
     return jsonify({'message': 'Usuário deletado com sucesso.'})
 
+
 #----------------------------- ROTAS PARA PRODUTO -------------------------------------------------------
 
 @bp.route('/produtos', methods=['POST'])
 @requer_autenticacao
 def criar_produto():
     data = request.get_json()
-    errors = produto_schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
 
-    produto = produto_schema.load(data, session=db.session)
+    try:
+        produto = produto_schema.load(data, session=db.session)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+
     db.session.add(produto)
     db.session.commit()
-    return jsonify({'id': produto.id}), 201
+    return jsonify({'Produto inserido com sucesso. id': produto.id}), 201
 
 
 @bp.route('/produtos', methods=['GET'])
@@ -95,22 +98,19 @@ def listar_produtos():
 
 @bp.route('/produtos/<int:id>', methods=['PUT'])
 @requer_autenticacao
-def atualizar_produto():
+def atualizar_produto(id):
     data = request.get_json()
-    errors = produto_schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
-
     produto = Produto.query.get(id)
     if not produto:
-        return jsonify({'error': 'Produto não encontrado.'}), 404
+        return jsonify({'error': 'Produto não encontrado'}), 404
 
-    produto.nome = data.get('nome', produto.nome)
-    produto.descricao = data.get('descricao', produto.descricao)
-    produto.preco = data.get('preco', produto.preco)
-    produto.estoque = data.get('estoque', produto.estoque)
+    try:
+        produto_atualizado = produto_schema.load(data, instance=produto, session=db.session)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+
     db.session.commit()
-    return jsonify(produto_schema.dump(produto))
+    return jsonify(produto_schema.dump(produto_atualizado))
 
 
 @bp.route('/produtos/<int:id>', methods=['DELETE'])
@@ -131,14 +131,15 @@ def deletar_produto(id):
 @requer_autenticacao
 def criar_pedido():
     data = request.get_json()
-    errors = pedido_schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
 
-    pedido = pedido_schema.load(data, session=db.session)
+    try:
+        pedido = pedido_schema.load(data, session=db.session)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+
     db.session.add(pedido)
     db.session.commit()
-    return jsonify({'id': pedido.id}), 201
+    return jsonify({'Pedido criado com sucesso. id': pedido.id}), 201
 
 
 @bp.route('/pedidos', methods=['GET'])
@@ -152,19 +153,17 @@ def listar_pedidos():
 @requer_autenticacao
 def atualizar_pedido(id):
     data = request.get_json()
-    errors = pedido_schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
-
     pedido = Pedido.query.get(id)
     if not pedido:
         return jsonify({'error': 'Pedido não encontrado'}), 404
 
-    pedido.id_usuario = data.get('id_usuario', pedido.id_usuario)
-    pedido.valor_total = data.get('valor_total', pedido.valor_total)
-    pedido.status = data.get('status', pedido.status)
+    try:
+        pedido_atualizado = pedido_schema.load(data, instance=pedido, session=db.session)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+
     db.session.commit()
-    return jsonify(pedido_schema.dump(pedido))
+    return jsonify(pedido_schema.dump(pedido_atualizado))
 
 
 @bp.route('/pedidos/<int:id>', methods=['DELETE'])
@@ -185,14 +184,15 @@ def deletar_pedido(id):
 @requer_autenticacao
 def criar_item_pedido():
     data = request.get_json()
-    errors = item_pedido_schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
 
-    item = item_pedido_schema.load(data, session=db.session)
-    db.session.add(item)
+    try:
+        item_pedido = item_pedido_schema.load(data, session=db.session)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+
+    db.session.add(item_pedido)
     db.session.commit()
-    return jsonify({'id': item.id}), 201
+    return jsonify({'Item inserido com sucesso. id': item_pedido.id}), 201
 
 
 @bp.route('/itens_pedido', methods=['GET'])
@@ -206,20 +206,17 @@ def listar_itens_pedido():
 @requer_autenticacao
 def atualizar_item_pedido(id):
     data = request.get_json()
-    errors = item_pedido_schema.validate(data)
-    if errors:
-        return jsonify(errors), 400
+    item_pedido = ItemPedido.query.get(id)
+    if not item_pedido:
+        return jsonify({'error': 'Item não encontrado no pedido'}), 404
 
-    item = ItemPedido.query.get(id)
-    if not item:
-        return jsonify({'error': 'ItemPedido não encontrado'}), 404
+    try:
+        item_pedido_atualizado = item_pedido_schema.load(data, instance=item_pedido, session=db.session)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
 
-    item.id_pedido = data.get('id_pedido', item.id_pedido)
-    item.id_produto = data.get('id_produto', item.id_produto)
-    item.quantidade = data.get('quantidade', item.quantidade)
-    item.preco = data.get('preco', item.preco)
     db.session.commit()
-    return jsonify(item_pedido_schema.dump(item))
+    return jsonify(item_pedido_schema.dump(item_pedido_atualizado))
 
 
 @bp.route('/itens_pedido/<int:id>', methods=['DELETE'])
@@ -227,7 +224,7 @@ def atualizar_item_pedido(id):
 def deletar_item_pedido(id):
     item = ItemPedido.query.get(id)
     if not item:
-        return jsonify({'error': 'ItemPedido não encontrado'}), 404
+        return jsonify({'error': 'Item não encontrado'}), 404
 
     db.session.delete(item)
     db.session.commit()
